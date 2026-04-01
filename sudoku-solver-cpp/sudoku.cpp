@@ -1,99 +1,101 @@
-#include <bits/stdc++.h>
+#include <iostream>
+#include <vector>
+#include <thread>
+#include <chrono>
+//#include<bits/stdc++.h>
 using namespace std;
 
-// Global variables
-array<array<int, 9>, 9> sudoku;
-array<array<int, 9>, 9> temp;
-bool solved = false;
-int depth = 0;
+#define UNASSIGNED 0
+#define N 9
 
-// Tree visualization
-void printTree(string msg)
-{
-    for (int i = 0; i < depth; i++)
-        cout << "   ";
-    cout << msg << endl;
+void printGrid(int grid[N][N]) {
+    for (int row = 0; row < N; row++) {
+        for (int col = 0; col < N; col++) {
+            cout << grid[row][col] << " ";
+        }
+        cout << endl;
+    }
 }
 
-// Check row
-bool checkrow(int row, int num)
-{
-    for (int col = 0; col < 9; col++)
-        if (sudoku[row][col] == num)
+bool isSafe(int grid[N][N], int row, int col, int num) {
+    for (int x = 0; x <= 8; x++)
+        if (grid[row][x] == num || grid[x][col] == num)
             return false;
-    return true;
-}
-
-// Check column
-bool checkcolumn(int col, int num)
-{
-    for (int row = 0; row < 9; row++)
-        if (sudoku[row][col] == num)
-            return false;
-    return true;
-}
-
-//  Check 3x3 grid
-bool checkgrid(int row, int col, int num)
-{
-    int startRow = (row / 3) * 3;
-    int startCol = (col / 3) * 3;
-
-    for (int i = startRow; i < startRow + 3; i++)
-        for (int j = startCol; j < startCol + 3; j++)
-            if (sudoku[i][j] == num)
+    int startRow = row - row % 3, startCol = col - col % 3;
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
+            if (grid[i + startRow][j + startCol] == num)
                 return false;
     return true;
 }
 
-//  Print Sudoku
-void draw()
-{
-    for (int i = 0; i < 9; i++)
-    {
-        for (int j = 0; j < 9; j++)
-        {
-            cout << sudoku[i][j] << " ";
-            if (j == 2 || j == 5)
-                cout << "| ";
+// HEURISTIC: Minimum Remaining Values (MRV)
+// Finds the empty cell with the fewest valid options left to reduce the tree size.
+bool findEmptyMRV(int grid[N][N], int &row, int &col) {
+    int minOptions = 10;
+    bool found = false;
+
+    for (int r = 0; r < N; r++) {
+        for (int c = 0; c < N; c++) {
+            if (grid[r][c] == UNASSIGNED) {
+                int options = 0;
+                for (int num = 1; num <= 9; num++) {
+                    if (isSafe(grid, r, c, num)) options++;
+                }
+                if (options < minOptions) {
+                    minOptions = options;
+                    row = r;
+                    col = c;
+                    found = true;
+                }
+            }
         }
-        cout << endl;
-        if (i == 2 || i == 5)
-            cout << "---------------------\n";
     }
+    return found;
 }
 
-// Find next empty cell
-bool findEmpty(int &row, int &col)
-{
-    for (row = 0; row < 9; row++)
-        for (col = 0; col < 9; col++)
-            if (sudoku[row][col] == 0)
-                return true;
-    return false;
+bool solveSudoku(int grid[N][N], int depth = 0) {
+    int row, col;
+    
+    // If no empty cell, we are done
+    if (!findEmptyMRV(grid, row, col)) {
+        return true; 
+    }
+
+    for (int num = 1; num <= 9; num++) {
+        if (isSafe(grid, row, col, num)) {
+            // STATE TREE GROWTH: Try placing a number
+            grid[row][col] = num;
+            cout << string(depth, ' ') << "-> Depth " << depth << ": Trying " << num << " at (" << row << "," << col << ")\n";
+            this_thread::sleep_for(chrono::milliseconds(20)); // Animation pause
+
+            if (solveSudoku(grid, depth + 1)) return true;
+
+            // BACKTRACKING: Undo the choice
+            grid[row][col] = UNASSIGNED;
+            cout << string(depth, ' ') << "<- Depth " << depth << ": Backtracking from (" << row << "," << col << ")\n";
+            this_thread::sleep_for(chrono::milliseconds(20)); // Animation pause
+        }
+    }
+    return false; // Trigger backtrack
 }
 
-// Main function
-void solveSudoku()
-{
-    cout << "Enter Sudoku (9x9), use 0 for empty:\n";
+void runSudoku() {
+    int grid[N][N] = { {3, 0, 6, 5, 0, 8, 4, 0, 0},
+                       {5, 2, 0, 0, 0, 0, 0, 0, 0},
+                       {0, 8, 7, 0, 0, 0, 0, 3, 1},
+                       {0, 0, 3, 0, 1, 0, 0, 8, 0},
+                       {9, 0, 0, 8, 6, 3, 0, 0, 5},
+                       {0, 5, 0, 0, 9, 0, 6, 0, 0},
+                       {1, 3, 0, 0, 0, 0, 2, 5, 0},
+                       {0, 0, 0, 0, 0, 0, 0, 7, 4},
+                       {0, 0, 5, 2, 0, 6, 3, 0, 0} };
 
-    for (int i = 0; i < 9; i++)
-        for (int j = 0; j < 9; j++)
-            cin >> sudoku[i][j];
-
-    cout << "\nInitial Sudoku:\n";
-    draw();
-
-    cout << "\nSolving...\n";
-
-    if (solveSudokuRec())
-    {
-        cout << "\nFinal Solution:\n";
-        draw();
-    }
-    else
-    {
+    cout << "\nSolving Sudoku using MRV Heuristic...\n";
+    if (solveSudoku(grid)) {
+        cout << "\n=== SOLUTION FOUND ===\n";
+        printGrid(grid);
+    } else {
         cout << "No solution exists.\n";
     }
 }
